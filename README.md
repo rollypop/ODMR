@@ -14,7 +14,8 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
 3. Trouble shooting
     - [ ] code cannot find thorlabs_tsi_camera_sdk.dll file.
        * The frequently appearing error message is 
-        '''PS C:\Users\user\Documents\hBN magnetrometry\Camera_Examples> & C:/Users/user/AppData/Local/Microsoft/WindowsApps/python3.13.exe "c:/Users/user/Documents/hBN magnetrometry/Camera_Examples/Python/CW_ODMR.py"
+        '''
+        PS C:\Users\user\Documents\hBN magnetrometry\Camera_Examples> & C:/Users/user/AppData/Local/Microsoft/WindowsApps/python3.13.exe "c:/Users/user/Documents/hBN magnetrometry/Camera_Examples/Python/CW_ODMR.py"
 Exception in thread Thread-2 (camera_producer):
 Traceback (most recent call last):
   File "C:\Users\user\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\thorlabs_tsi_sdk\tl_camera.py", line 178, in __init__
@@ -45,6 +46,7 @@ Traceback (most recent call last):
     ...<4 lines>...
                         "and 64-bit libraries when using a 64-bit interpreter.\n")
 thorlabs_tsi_sdk.tl_camera.TLCameraError: Could not find module 'thorlabs_tsi_camera_sdk.dll' (or one of its dependencies). Try using the full path with constructor syntax.
-Unable to load library - are the thorlabs tsi camera sdk libraries discoverable from the application directory? Try placing them in the same directory as your program, or adding the directory with the libraries to the PATH. Make sure to use 32-bit libraries when using a 32-bit python interpreter and 64-bit libraries when using a 64-bit interpreter.'''
+Unable to load library - are the thorlabs tsi camera sdk libraries discoverable from the application directory? Try placing them in the same directory as your program, or adding the directory with the libraries to the PATH. Make sure to use 32-bit libraries when using a 32-bit python interpreter and 64-bit libraries when using a 64-bit interpreter.
+        '''
     - [ ] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
     - [ ] Check producer consumer structure.
