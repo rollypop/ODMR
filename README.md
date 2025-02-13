@@ -12,6 +12,7 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
     3. SynthHD is also set to Hardware triggerd mode. For every input trigger SynthHD make MW frequency sweep. The sweep step is 10MHz and the range of frequency sweep is 3GHz ~ 4GHz.
 
 3. Trouble shooting
-    * [ ] code cannot find thorlabs_tsi_camera_sdk.dll file.
-    * [ ] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
-    * [ ] Check producer consumer structure.
+    [ ] code cannot find thorlabs_tsi_camera_sdk.dll file.
+          
+    [ ] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
+    [ ] Check producer consumer structure.
