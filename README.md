@@ -13,6 +13,6 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
 
 3. Trouble shooting
     - [ ] code cannot find thorlabs_tsi_camera_sdk.dll file.
-       * The frequently appearing error message is shown in patherror
+       * The frequently appearing error message is shown in path_error
     - [ ] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
     - [ ] Check producer consumer structure.
