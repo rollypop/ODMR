@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 import pyvisa
+import os
 
 try:
     # if on Windows, use the provided setup script to add the DLLs folder to the PATH
@@ -24,6 +25,9 @@ intensity_data = []
 frames_captured = 0
 capture_lock = threading.Lock()
 
+# 카메라가 ARM되어 준비되었음을 나타내는 플래그
+camera_ready = False
+
 # 측정 완료 여부 (Consumer에서 n_frames 처리 후 True 설정)
 measurement_complete = False
 
@@ -33,9 +37,8 @@ measurement_complete = False
 def sdg_control():
     """
     SDG2082x를 PyVISA로 제어하여 1Hz 펄스를 출력합니다.
-    실제 외부 트리거(펄스)가 SDG2082x에서 발생하면,
-    Producer가 500프레임을 수집할 때까지 대기하다가,
-    수집 완료 후 SDG2082x를 종료합니다.
+    카메라가 ARM되어 준비되었음을 나타내는 camera_ready가 True가 될 때까지 대기한 후,
+    Producer가 500프레임을 수집할 때까지 대기하다가, 수집 완료 후 SDG2082x를 종료합니다.
     """
     rm = pyvisa.ResourceManager()
     try:
@@ -57,7 +60,12 @@ def sdg_control():
         print("SDG 초기 설정 오류:", e)
         return
 
-    print("SDG2082x 제어 시작: 1Hz 펄스 환경 유지, 500프레임 수집 대기 중")
+    print("SDG2082x 제어 시작: 카메라 준비 대기 중...")
+    # 카메라가 준비되었음을 나타내는 camera_ready 플래그가 True가 될 때까지 대기
+    while not camera_ready:
+        time.sleep(0.1)
+    print("카메라 준비 완료. SDG2082x 펄스 출력 시작")
+
     # Producer가 n_frames(500프레임) 수집될 때까지 대기
     while True:
         with capture_lock:
@@ -75,7 +83,7 @@ def camera_producer():
     하드웨어 트리거(예: SDG2082x의 1Hz 펄스)가 들어올 때마다 Zelux 카메라가 프레임을 획득하고,
     (프레임 번호, 이미지 배열) 튜플을 큐에 저장합니다.
     """
-    global frames_captured
+    global frames_captured, camera_ready
     with TLCameraSDK() as sdk:
         available_cameras = sdk.discover_available_cameras()
         if len(available_cameras) < 1:
@@ -88,10 +96,13 @@ def camera_producer():
             camera.frame_rate_control_value = 1      # 1Hz 트리거와 일치
             camera.is_frame_rate_control_enabled = True
 
-            # 반드시 operation_mode는 ARM 전에 설정해야 함
+            # operation_mode는 ARM 전에 설정해야 함
             camera.operation_mode = OPERATION_MODE.HARDWARE_TRIGGERED
             camera.arm(2)
             print("카메라 ARM: 하드웨어 트리거 대기 중")
+            # 카메라가 준비되었음을 나타내는 플래그 설정
+            camera_ready = True
+
             try:
                 while True:
                     with capture_lock:
@@ -108,7 +119,7 @@ def camera_producer():
                         with capture_lock:
                             frames_captured += 1
                         print(f"프레임 #{frame.frame_count} 저장 (총 {frames_captured}/{n_frames})")
-                    # 프레임이 아직 없으면 바로 루프 반복
+                    # 프레임이 아직 없으면 즉시 루프 반복
             except KeyboardInterrupt:
                 print("카메라 Producer 종료 (KeyboardInterrupt)")
             finally:
