@@ -36,9 +36,9 @@ measurement_complete = False
 # -----------------------------------------
 def sdg_control():
     """
-    SDG2082x를 PyVISA로 제어하여 1Hz 펄스를 출력합니다.
-    카메라가 ARM되어 준비되었음을 나타내는 camera_ready가 True가 될 때까지 대기한 후,
-    Producer가 500프레임을 수집할 때까지 대기하다가, 수집 완료 후 SDG2082x를 종료합니다.
+    Generate 1Hz pulse using SDG2082x controlled by PyVISA.
+    Wait until camera_ready is True, indicating that the camera has been armed and is ready,
+    then wait until Producer collects 500 frames and turn off SDG2082x after collection.
     """
     rm = pyvisa.ResourceManager()
     try:
@@ -54,7 +54,7 @@ def sdg_control():
         sdg.write("C1:BSWV FRQ,1")          # 펄스 주파수를 1Hz로 설정
         sdg.write("C1:BSWV AMP,2")          # 진폭 2V
         sdg.write("C1:BSWV OFST,1")         # DC offset 1V
-        sdg.write("C1:BSWV WIDTH,2e-4")      # 펄스 폭 2µs
+        sdg.write("C1:BSWV WIDTH,2e-4")      # 펄스 폭 200µs
         sdg.write("C1:OUTP ON")             # 출력 활성화
     except Exception as e:
         print("SDG 초기 설정 오류:", e)
@@ -80,8 +80,8 @@ def sdg_control():
 # -----------------------------------------
 def camera_producer():
     """
-    하드웨어 트리거(예: SDG2082x의 1Hz 펄스)가 들어올 때마다 Zelux 카메라가 프레임을 획득하고,
-    (프레임 번호, 이미지 배열) 튜플을 큐에 저장합니다.
+    Obtain frames from the camera whenever a hardware trigger (e.g., 1Hz pulse from SDG2082x) is received,
+    and store the (frame number, image array) tuple in the queue.
     """
     global frames_captured, camera_ready
     with TLCameraSDK() as sdk:
@@ -130,9 +130,9 @@ def camera_producer():
 # -----------------------------------------
 def camera_consumer():
     """
-    Producer에서 큐에 저장된 프레임을 하나씩 꺼내어,
-    각 프레임의 전체 intensity(모든 픽셀의 합)를 계산하고,
-    intensity_data 리스트에 저장합니다.
+    Consume frames stored in the queue by the Producer,
+    calculate the total intensity (sum of all pixels) of each frame,
+    and store the intensity in the intensity_data list.
     """
     global measurement_complete
     processed_frames = 0
@@ -167,6 +167,5 @@ plt.figure()
 plt.plot(np.arange(1, len(intensity_data) + 1), intensity_data, 'ro-')
 plt.xlabel("Frame Number")
 plt.ylabel("Total Intensity")
-plt.title("최종 측정 결과: Total Intensity vs. Frame Number (CW ODMR)")
 plt.grid(True)
 plt.show()
