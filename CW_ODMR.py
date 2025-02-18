@@ -5,10 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 import pyvisa
-import os
 
-# DLL이 있는 폴더 경로를 PATH에 추가 (파일명이 아닌 폴더 경로를 넣어야 함)
-os.environ["PATH"] = r"C:\Users\user\Documents\hBN magnetrometry\Scientific Camera Interfaces\SDK\Python Toolkit\dlls\64_lib;" + os.environ["PATH"]
+try:
+    # if on Windows, use the provided setup script to add the DLLs folder to the PATH
+    from windows_setup import configure_path
+    configure_path()
+except ImportError:
+    configure_path = None
 
 # 측정할 프레임 수
 n_frames = 500
