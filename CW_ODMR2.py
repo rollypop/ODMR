@@ -7,8 +7,12 @@ from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 import pyvisa
 import os
 
-# DLL이 있는 폴더 경로를 PATH에 추가 (파일명이 아닌 폴더 경로)
-os.environ["PATH"] = r"C:\Users\user\Documents\hBN magnetrometry\Scientific Camera Interfaces\SDK\Python Toolkit\dlls\64_lib;" + os.environ["PATH"]
+try:
+    # if on Windows, use the provided setup script to add the DLLs folder to the PATH
+    from windows_setup import configure_path
+    configure_path()
+except ImportError:
+    configure_path = None
 
 # 측정할 프레임 수
 n_frames = 500
@@ -181,6 +185,22 @@ plt.figure()
 plt.plot(np.array(frequencies)/1e9, avg_intensities, 'ro-')
 plt.xlabel("MW Frequency (GHz)")
 plt.ylabel("Average Total Intensity")
-plt.title("최종 측정 결과: MW Frequency vs. Average Total Intensity (CW ODMR)")
 plt.grid(True)
 plt.show()
+
+# ---------------------------
+# CSV 파일로 raw 데이터 저장 (각 frequency별 intensity 값 기록)
+# ---------------------------
+# 각 주파수에서의 측정 사이클 수의 최대값 계산
+max_cycles = max(len(vals) for vals in intensity_dict.values())
+
+csv_filename = "해당날짜_실험횟수.csv"
+with open(csv_filename, "w", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    header = ["MW Frequency (GHz)"] + [f"cycle{i+1}" for i in range(max_cycles)]
+    writer.writerow(header)
+    for freq in frequencies:
+        row = [freq/1e9] + intensity_dict[freq] + [""] * (max_cycles - len(intensity_dict[freq]))
+        writer.writerow(row)
+
+print(f"Raw intensity data가 {csv_filename} 파일로 저장되었습니다.")
