@@ -16,6 +16,10 @@ try:
 except ImportError:
     configure_path = None
 
+# 전역 ROI 설정 (x: 550~1000, y: 400~800)
+roi_y_start, roi_y_end = 400, 801
+roi_x_start, roi_x_end = 550, 1001
+
 # 측정할 프레임 수
 n_frames = 500
 
@@ -125,9 +129,7 @@ def magnetic_image_processing():
     cube = np.stack(image_list, axis=0)  # shape: (n_frames, H, W)
     n, H, W = cube.shape
 
-    # ROI 영역 (예: x: 550~1000, y: 400~800)
-    roi_y_start, roi_y_end = 400, 801
-    roi_x_start, roi_x_end = 550, 1001
+    # ROI 영역 추출
     roi_cube = cube[:, roi_y_start:roi_y_end, roi_x_start:roi_x_end]
     roi_H, roi_W = roi_cube.shape[1], roi_cube.shape[2]
 
@@ -178,9 +180,8 @@ sdg_thread.join()
 magnetic_image_processing()
 
 # -----------------------------------------
-# CSV 파일로 Raw Data 저장 (Frequency별 intensity 기록)
+# CSV 파일로 Raw Data 저장 (각 frequency별 intensity 기록)
 # -----------------------------------------
-import glob
 today_str = datetime.datetime.today().strftime("%m%d%Y")
 data_dir = r"C:\Users\user\Documents\hBN_magnetrometry\Data"
 if not os.path.exists(data_dir):
