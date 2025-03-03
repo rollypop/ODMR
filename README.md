@@ -24,5 +24,5 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
 
 ## 2. Magnetic image
 [magnetic_img2.py](https://github.com/rollypop/ODMR/blob/main/magnetic_img2.py) is the code which can obtain magnetic image from vdW heterostructure(hBN + other vdW matter). But we need to check the code with real sample
-//
-After fitting MW sweep result to double dip Lorentzian function for every pixel in ROI, code makes map of $\delta B_{z} = B_z - B_0$, where $B_0\simeq10mT$
+
+After fitting MW sweep result to double dip Lorentzian function for every pixel in ROI, code makes map of $\Delta B_{z} = B_z - B_0$, where $B_0\simeq10mT$
