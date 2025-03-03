@@ -19,5 +19,6 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
     - [ ] Do test of [magnetic_img.py](https://github.com/rollypop/ODMR/blob/main/magnetic_img.py) .
 
 [CW_ODMR2.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR2.py) can convert trigger number to corresponding MW frequency appropriately.
+
 [CW_ODMR3.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR3.py) can obtain data from selected ROI.
 
