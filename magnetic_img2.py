@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 import csv
 import datetime
 import glob
+from scipy.optimize import curve_fit
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 import pyvisa
 import os
 
 try:
+    # 윈도우용 DLL 설정: windows_setup 모듈이 제공되면 사용하여 DLL 경로 추가
     from windows_setup import configure_path
     configure_path()
 except ImportError:
@@ -27,6 +29,9 @@ n_frames = 500
 mw_start = 3e9    # 3 GHz
 mw_step = 1e7     # 10 MHz
 mw_steps = 100    # 100 steps (3 GHz ~ 4 GHz)
+
+# 외부 bias 자기장 (B0)
+B0 = 10e-3  # 10 mT
 
 # 전역 데이터: Producer에서 수집한 이미지와 각 프레임의 MW 주파수를 저장할 리스트
 image_list = []       # 각 프레임의 2D 이미지 (numpy array)
@@ -120,7 +125,14 @@ def camera_producer():
                 camera.disarm()
 
 # -----------------------------------------
-# Magnetic Image Processing 함수 (ROI 적용)
+# Lorentzian 피팅 함수 (두 개의 dip)
+# -----------------------------------------
+def double_lorentzian_dip(f, f1, A1, gamma1, f2, A2, gamma2, offset):
+    # 피크가 dip이므로 offset에서 값을 빼는 형태
+    return offset - (A1 * gamma1**2 / ((f - f1)**2 + gamma1**2)) - (A2 * gamma2**2 / ((f - f2)**2 + gamma2**2))
+
+# -----------------------------------------
+# Magnetic Image Processing 함수 (ROI 적용, Lorentzian 피팅 이용)
 # -----------------------------------------
 def magnetic_image_processing():
     if len(image_list) == 0:
@@ -132,40 +144,73 @@ def magnetic_image_processing():
     # ROI 영역 추출
     roi_cube = cube[:, roi_y_start:roi_y_end, roi_x_start:roi_x_end]
     roi_H, roi_W = roi_cube.shape[1], roi_cube.shape[2]
+    freqs = np.array(mw_frequencies)  # (n_frames,)
 
-    freqs = np.array(mw_frequencies)  # shape: (n_frames,)
-
-    # 기본 파라미터 (Zeeman 계산용)
+    # 기본 파라미터
     gamma_e = 28e9  # 28 GHz/T
-    D_ref = 3.48e9  # 기준 ODMR 중심 주파수, 3.48 GHz
+    B0 = 10e-3     # 10 mT bias field
+    # (D_ref는 사용하지 않고, f1 and f2를 직접 피팅하여 사용)
 
-    Bz_map = np.zeros((roi_H, roi_W))
-    unique_freqs = np.unique(freqs)  # mw_steps 개의 주파수 값
+    # unique 주파수 (MW sweep의 100개 포인트)
+    unique_freqs = np.sort(np.unique(freqs))
 
-    # 각 ROI 픽셀에 대해 ODMR 스펙트럼 재구성
+    # 결과 ΔB_z map (ROI 내 각 픽셀에 대해)
+    deltaBz_map = np.zeros((roi_H, roi_W))
+
+    # for each ROI pixel, reconstruct the spectrum and perform double Lorentzian fit
     for i in range(roi_H):
         for j in range(roi_W):
+            # 각 픽셀의 스펙트럼: 각 프레임에서 해당 픽셀 intensity
             spectrum = roi_cube[:, i, j]
-            avg_intensities = []
+            # 그룹화: 각 unique frequency에 대한 평균 intensity
+            y_data = []
             for uf in unique_freqs:
                 mask = (freqs == uf)
-                avg_intensity = np.mean(spectrum[mask])
-                avg_intensities.append(avg_intensity)
-            avg_intensities = np.array(avg_intensities)
-            min_index = np.argmin(avg_intensities)
-            f_res = unique_freqs[min_index]
-            Bz_map[i, j] = (f_res - D_ref) / gamma_e
+                y_data.append(np.mean(spectrum[mask]))
+            y_data = np.array(y_data)
+            x_data = unique_freqs  # in Hz
 
+            # 초기 추정값: f1, f2 around the center of the sweep
+            # 가령, f1_init = 3.47 GHz, f2_init = 3.49 GHz, A1, A2 추정은 dip depth (offset - min), gamma ~ 1e7, offset는 max intensity
+            offset_init = np.max(y_data)
+            min_val = np.min(y_data)
+            A_init = offset_init - min_val  # dip depth
+            f1_init = 3.47e9
+            f2_init = 3.49e9
+            gamma1_init = 5e7  # 50 MHz
+            gamma2_init = 5e7
+
+            p0 = [f1_init, A_init, gamma1_init, f2_init, A_init, gamma2_init, offset_init]
+
+            try:
+                popt, pcov = curve_fit(double_lorentzian_dip, x_data, y_data, p0=p0)
+                # popt = [f1, A1, gamma1, f2, A2, gamma2, offset]
+                f1, f2 = popt[0], popt[3]
+                # f_plus = max(f1, f2), f_minus = min(f1, f2)
+                f_plus = max(f1, f2)
+                f_minus = min(f1, f2)
+                Bz = (f_plus - f_minus) / (2 * gamma_e)  # in Tesla
+                deltaBz = Bz - B0
+            except Exception as e:
+                # 만약 피팅 실패하면, 대신 단순 최소값 접근법 사용
+                print(f"픽셀 ({i},{j}) 피팅 실패: {e}")
+                min_index = np.argmin(y_data)
+                f_res = x_data[min_index]
+                # 이 경우, 임의로 f1=f_res, f2=f_res (즉, Bz=0)
+                deltaBz = -B0
+            deltaBz_map[i, j] = deltaBz
+
+    # Magnetic image plot (ΔB_z map, 단위 mT)
     plt.figure()
-    plt.imshow(Bz_map * 1e3, cmap='jet', origin='lower')
-    plt.colorbar(label='Magnetic Field Bz (mT)')
+    plt.imshow(deltaBz_map * 1e3, cmap='jet', origin='lower')
+    plt.colorbar(label='ΔBz (mT)')
     plt.xlabel("ROI Pixel X")
     plt.ylabel("ROI Pixel Y")
-    plt.title("Magnetic Field Map (Bz) from ODMR (ROI)")
+    plt.title("ΔBz Map from Double Lorentzian Fitting (CW ODMR)")
     plt.show()
 
 # -----------------------------------------
-# 쓰레드 시작 및 데이터 수집 완료
+# 쓰레드 시작 및 데이터 수집
 # -----------------------------------------
 sdg_thread = threading.Thread(target=sdg_control, daemon=True)
 producer_thread = threading.Thread(target=camera_producer, daemon=True)
@@ -176,11 +221,11 @@ producer_thread.start()
 producer_thread.join()
 sdg_thread.join()
 
-# Magnetic image processing (ROI 적용)
+# Magnetic image processing (ROI, Lorentzian 피팅 이용)
 magnetic_image_processing()
 
 # -----------------------------------------
-# CSV 파일로 Raw Data 저장 (각 frequency별 intensity 기록)
+# CSV 파일로 Raw Data 저장 (각 frequency별 ROI 내 총 intensity 합)
 # -----------------------------------------
 today_str = datetime.datetime.today().strftime("%m%d%Y")
 data_dir = r"C:\Users\user\Documents\hBN_magnetrometry\Data"
@@ -191,7 +236,7 @@ existing_files = glob.glob(pattern)
 counter = len(existing_files) + 1
 csv_filename = os.path.join(data_dir, f"{today_str}_{counter}.csv")
 
-# intensity_dict 구성 (각 주파수별 ROI 내 총 intensity 합)
+# intensity_dict 구성: 각 프레임에서 ROI 내 총 intensity 합을, MW 주파수별로 그룹화
 intensity_dict = {}
 for frame_num, img in zip(range(1, n_frames+1), image_list):
     roi = img[roi_y_start:roi_y_end, roi_x_start:roi_x_end]
