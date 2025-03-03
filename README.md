@@ -14,9 +14,10 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
 3. Trouble shooting
     - [x] code cannot find thorlabs_tsi_camera_sdk.dll file.
        * The frequently appearing error message is shown in path_error
-    - [ ] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
+    - [x] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
     - [x] Check producer consumer structure.
     - [x] Do test of [magnetic_img.py](https://github.com/rollypop/ODMR/blob/main/magnetic_img.py) .
+    - [ ] Fabricate MW antenna.
 
 [CW_ODMR2.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR2.py) can convert trigger number to corresponding MW frequency appropriately.
 
