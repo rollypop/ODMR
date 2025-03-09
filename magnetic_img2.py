@@ -57,11 +57,10 @@ def sdg_control():
         sdg.write("*RST")
         time.sleep(0.1)
         sdg.write("C1:BSWV WVTP,PULSE")
-        sdg.write("C1:BSWV FRQ,25")         # 25 Hz 펄스 → 40ms 주기
+        sdg.write("C1:BSWV FRQ,1")         # 1 Hz 펄스 → 1s 주기
         sdg.write("C1:BSWV AMP,2")
         sdg.write("C1:BSWV OFST,1")
         sdg.write("C1:BSWV WIDTH,2e-4")
-        sdg.write("C1:OUTP ON")
     except Exception as e:
         print("SDG 초기 설정 오류:", e)
         return
@@ -70,6 +69,7 @@ def sdg_control():
     while not camera_ready:
         time.sleep(0.01)
     print("카메라 준비 완료. SDG2082x 펄스 출력 시작")
+    sdg.write("C1:OUTP ON")
     
     global frames_captured
     while True:
@@ -91,10 +91,10 @@ def camera_producer():
             print("카메라가 감지되지 않았습니다.")
             return
         with sdk.open_camera(available_cameras[0]) as camera:
-            camera.exposure_time_us = 20000  # 20 ms 노출
+            camera.exposure_time_us = 200000  # 200 ms 노출
             camera.frames_per_trigger_zero_for_unlimited = 1
             camera.image_poll_timeout_ms = 1000
-            camera.frame_rate_control_value = 25
+            camera.frame_rate_control_value = 1
             camera.is_frame_rate_control_enabled = True
 
             camera.operation_mode = OPERATION_MODE.HARDWARE_TRIGGERED
