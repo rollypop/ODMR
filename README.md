@@ -17,11 +17,13 @@ Python code to manipulate Thorlabs Zelux CMOS camera and Siglent sdg2082x(& Wind
     - [x] Find appropriate method of VNA to verify SynthHD sweep MW frequency for 10MHz per seconds.
     - [x] Check producer consumer structure.
     - [x] Do test of [magnetic_img.py](https://github.com/rollypop/ODMR/blob/main/magnetic_img.py) .
-    - [ ] Fabricate MW antenna.
+    - [ ] Fabricate MW antenna. --> Find the way to PCB etching.
+    - [ ] Check [CW ODMR4.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR4.py)
 
 [CW_ODMR2.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR2.py) can convert trigger number to corresponding MW frequency appropriately.
 
 [CW_ODMR3.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR3.py) can obtain data from selected ROI.
+[CW ODMR4.py](https://github.com/rollypop/ODMR/blob/main/CW_ODMR4.py) add widnfreak library to control SynthHD simultaneously with other equipment
 
 ## 2. Magnetic image
 [magnetic_img2.py](https://github.com/rollypop/ODMR/blob/main/magnetic_img2.py) is the code which can obtain magnetic image from vdW heterostructure(hBN + other vdW matter). But we need to check the code with real sample
