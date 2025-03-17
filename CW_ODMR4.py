@@ -20,15 +20,15 @@ except ImportError:
     configure_path = None
 
 # 측정할 프레임 수 (예시로 100000 프레임)
-n_frames = 100000
+n_frames = 20000
 
 # MW sweep 파라미터
 mw_start = 3e9    # 3 GHz
-mw_step = 1e7     # 10 MHz
-mw_steps = 100    # 100 steps (3 GHz ~ 4 GHz)
+mw_step = 5e7     # 50 MHz
+mw_steps = 20    # 20 steps (3 GHz ~ 4 GHz)
 
 # 카메라 프레임 데이터를 저장할 큐와, 각 MW frequency별 intensity를 저장할 딕셔너리
-frame_queue = queue.Queue(maxsize=500)
+frame_queue = queue.Queue(maxsize=20000)
 intensity_dict = {}  # key: frequency (Hz), value: list of intensity values
 
 # 전역 카운터 및 동기화를 위한 변수
@@ -144,10 +144,10 @@ def camera_producer():
             print("카메라가 감지되지 않았습니다.")
             return
         with sdk.open_camera(available_cameras[0]) as camera:
-            camera.exposure_time_us = 300000  # 300 ms 노출
+            camera.exposure_time_us = 20000  # 20 ms 노출
             camera.frames_per_trigger_zero_for_unlimited = 1  # 트리거당 1프레임
             camera.image_poll_timeout_ms = 1000
-            camera.frame_rate_control_value = 1      # 25Hz 트리거에 맞춤
+            camera.frame_rate_control_value = 25      # 25Hz 트리거에 맞춤
             camera.is_frame_rate_control_enabled = True
 
             # operation_mode는 ARM 전에 설정해야 함
