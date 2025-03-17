@@ -93,42 +93,60 @@ def sdg_control():
 def synthhd_control():
     """
     SynthHD를 제어하여, 카메라가 18번째 프레임부터 MW 방출을 시작하도록 합니다.
-    프레임 번호가 18 이상이 되면 MW 출력이 켜지고, 각 프레임마다 MW 주파수를 업데이트합니다.
+    카메라가 18번째 프레임에 도달하기 전까지 MW 출력은 OFF 상태를 유지하며,
+    이후 프레임 번호에 따라 MW 주파수를 업데이트합니다.
     """
-    # SynthHD 객체 생성 및 연결
-    device = SynthHD()
+    # 실제 연결된 포트를 확인 후 devpath에 지정하세요.
+    devpath = "COM3"  # 예: "COM3"
     try:
-        device.connect()  # 연결 방식은 공식 패키지 문서에 따라 사용
+        # SynthHD 클래스는 devpath를 필수 인자로 요구하며, 생성 시 자동으로 연결됨
+        synth = SynthHD(devpath)
     except Exception as e:
-        print("SynthHD 연결 실패:", e)
+        print("SynthHD 초기화 오류:", e)
         return
 
-    # 초기 MW 설정: 3 GHz로 시작
-    device.set_frequency(mw_start)
-    # MW 출력은 아직 OFF 상태로 둡니다.
-    device.output_off()
-    
-    # camera_ready 플래그와 프레임 수 18까지 대기
-    while frames_captured < 18:
-        time.sleep(0.01)
-    print("SynthHD: 18번째 프레임 도달. MW 방출 시작")
-    device.output_on()
+    try:
+        synth.set_frequency(mw_start)
+        synth.output_off()  # 초기 MW 출력 OFF
+    except Exception as e:
+        print("SynthHD 초기 설정 오류:", e)
+        return
 
+    print("SynthHD: 카메라가 18번째 프레임에 도달할 때까지 대기합니다...")
+    while True:
+        with capture_lock:
+            if frames_captured >= 18:
+                break
+        time.sleep(0.01)
+    print("SynthHD: 카메라 18번째 프레임 도달. MW 출력 시작합니다.")
+    try:
+        synth.output_on()
+    except Exception as e:
+        print("SynthHD 출력 ON 오류:", e)
+    
     last_frame = 18
-    # 이후 n_frames 까지 프레임마다 주파수를 업데이트
-    while frames_captured < n_frames:
+    while True:
         with capture_lock:
             current_frame = frames_captured
+        if current_frame >= n_frames:
+            break
         if current_frame > last_frame:
             last_frame = current_frame
             step_index = (current_frame - 1) % mw_steps
             new_freq = mw_start + step_index * mw_step
-            device.set_frequency(new_freq)
-            print(f"SynthHD: 프레임 {current_frame}, MW 주파수 {new_freq/1e9:.3f} GHz")
+            try:
+                synth.set_frequency(new_freq)
+                print(f"SynthHD: 프레임 {current_frame}, 주파수 {new_freq/1e9:.3f} GHz 설정")
+            except Exception as e:
+                print("SynthHD 주파수 업데이트 오류:", e)
         time.sleep(0.005)
-    device.output_off()
-    print("SynthHD: MW 출력 종료")
-
+    
+    try:
+        synth.output_off()
+        synth.disconnect()
+    except Exception as e:
+        print("SynthHD 종료 오류:", e)
+    print("SynthHD: MW 출력 OFF 및 장비 연결 종료")
 # -----------------------------------------
 # 카메라 Producer 함수
 # -----------------------------------------
