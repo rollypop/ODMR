@@ -131,6 +131,8 @@ def camera_consumer():
     while processed_frames < n_frames:
         try:
             frame_num, image = frame_queue.get(timeout=0.1)
+            if frame_num < 18:
+                continue
             # ROI 영역 추출
             roi = image[roi_y_start:roi_y_end, roi_x_start:roi_x_end]
             roi_total_intensity = np.sum(roi)
