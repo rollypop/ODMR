@@ -10,6 +10,14 @@ import pyvisa
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
 import pandas as pd  # pandas 임포트
 
+try:
+    # if on Windows, use the provided setup script to add the DLLs folder to the PATH
+    from windows_setup import configure_path
+    configure_path()
+except ImportError:
+    configure_path = None
+
+
 # 설정
 n_frames = 20000  # 측정할 총 프레임 수 (대용량 측정)
 mw_start = 3e9    # 시작 MW 주파수: 3 GHz
