@@ -8,7 +8,7 @@ import glob
 import os
 import pyvisa
 from thorlabs_tsi_sdk.tl_camera import TLCameraSDK, OPERATION_MODE
-import pandas as pd  # pandas 임포트
+import pandas as pd  
 
 try:
     # if on Windows, use the provided setup script to add the DLLs folder to the PATH
@@ -125,13 +125,14 @@ def camera_consumer():
     global measurement_complete, intensity_dict
     intensity_dict = {}
     processed_frames = 0
-    # ROI 영역 설정: x: 550~1000, y: 400~800 (Python index: y 400:801, x 550:1001)
+    # ROI 영역 설정: x: 550~1000, y: 400~800 (Python index: y 400:801, x 550:1001) 상황에 따라 roi는 맞춰서 사용할것 항상 실험시작전 확인
+    
     roi_y_start, roi_y_end = 400, 801
     roi_x_start, roi_x_end = 550, 1001
     while processed_frames < n_frames:
         try:
             frame_num, image = frame_queue.get(timeout=0.1)
-            if frame_num < 18:
+            if frame_num < 18: # 17번째 까지는 제대로된 데이터 획득이 안되는 것으로 가정하고 18번째 부터 획득하도록
                 continue
             # ROI 영역 추출
             roi = image[roi_y_start:roi_y_end, roi_x_start:roi_x_end]
