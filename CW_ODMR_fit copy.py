@@ -28,10 +28,16 @@ n_frames = 20000
 # Load frequency list for labeling (middle column of CSV in MHz)
 sweep_table_path = 'cw_sweeptable.csv'
 # CSV has no header: columns are [step_index, freq_MHz, power_dBm]
-sweep_df = pd.read_csv(sweep_table_path, header=None)
-# Convert frequencies from MHz to Hz
-sweep_freqs = sweep_df.iloc[:, 1].values * 1e6  # Hz
-num_steps = len(sweep_freqs)
+try:
+    sweep_df = pd.read_csv(sweep_table_path, header=None)
+    sweep_freqs = sweep_df.iloc[:, 1].values * 1e6  # Hz
+    num_steps = len(sweep_freqs)
+except FileNotFoundError:
+    print(f"Error: Sweep table file not found: {sweep_table_path}")
+    raise
+except Exception as e:
+    print(f"Error reading sweep table: {e}")
+    raise
 
 
 roi_x_start = 550
@@ -124,11 +130,9 @@ def camera_producer(exposure_time = 20000, frames_per_trigger_zero_for_unlimited
                         frame_queue.put((frame.frame_count, img))
                         with capture_lock:
                             frames_captured += 1
-                        # For debugging
+                        # Log every 1000 frames only
                         if frames_captured % 1000 == 0:
-                            print(f"DEBUG: {frames_captured} frames collected")
-                        # Total number of frames collecteds
-                        print(f"Frame #{frame.frame_count} Saved (Total {frames_captured}/{n_frames})")
+                            print(f"DEBUG: {frames_captured} frames collected (Frame count {frame.frame_count})")
             except KeyboardInterrupt:
                 print("Camera producer exit (KeyboardInterrupt)")
             finally:
@@ -138,7 +142,7 @@ def camera_producer(exposure_time = 20000, frames_per_trigger_zero_for_unlimited
 # Camera Consumer function (ROI processing: Added intensity sum and debugging logs)
 # -----------------------------------------
 def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
-    global measurement_complete, intensity_dict
+    global intensity_dict
     today = date.today()
     file_name = os.path.join(file_path, f"CW_ODMR({today}).csv")
     intensity_dict = {}
@@ -171,8 +175,104 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
         [(f, np.mean(vals)) for f, vals in sorted(intensity_dict.items())],
         columns=["Frequency (Hz)", "Intensity"]
     )
-    df_summary.to_csv(file_name, index=False)
+    try:
+        df_summary.to_csv(file_name, index=False)
+    except Exception as e:
+        print(f"Error writing summary CSV {file_name}: {e}")
+        raise
+
+    global measurement_complete
     measurement_complete = True
+
+# -----------------------------------------
+# Perform summary ODMR fit and plot
+# -----------------------------------------
+def fit_summary_odmr(intensity_dict):
+    """
+    Perform dynamic initial-guess Lorentzian fitting
+    on the summary CW-ODMR spectrum stored in intensity_dict.
+    Returns fitted frequencies f1, f2 in GHz.
+    """
+    # Build frequency and intensity arrays (GHz), using exact Hz keys to avoid float mismatch
+    hz_keys = sorted(intensity_dict.keys())
+    freqs = np.array(hz_keys) / 1e9
+    intensities = np.array([np.mean(intensity_dict[k]) for k in hz_keys])
+
+    # dynamic initial guess for summary fit
+    split = (freqs[0] + freqs[-1]) / 2
+    mask_low  = freqs < split
+    mask_high = freqs >= split
+    idx_low   = np.argmin(intensities[mask_low])
+    idx_high  = np.argmin(intensities[mask_high])
+    f1_guess  = freqs[mask_low][idx_low]
+    f2_guess  = freqs[mask_high][idx_high]
+    A1_guess  = np.max(intensities) - intensities[mask_low][idx_low]
+    A2_guess  = np.max(intensities) - intensities[mask_high][idx_high]
+    g1_guess  = 0.01
+    g2_guess  = 0.01
+    C_guess   = np.median(intensities)
+    p0_summary = [A1_guess, f1_guess, g1_guess,
+                  A2_guess, f2_guess, g2_guess,
+                  C_guess]
+
+    # Bounds for fitting
+    lower = [0, 3.0, 0.001, 0, 3.5, 0.001, np.min(intensities)]
+    upper = [np.ptp(intensities), 3.4, 0.1,
+             np.ptp(intensities), 4.0, 0.1,
+             np.max(intensities)]
+
+    # Define the double Lorentzian model
+    def double_lorentzian_ghz(f, A1, f1, g1, A2, f2, g2, C):
+        lor1 = A1 * g1**2 / ((f - f1)**2 + g1**2)
+        lor2 = A2 * g2**2 / ((f - f2)**2 + g2**2)
+        return C - (lor1 + lor2)
+
+    # Perform fit
+    popt, _ = curve_fit(
+        double_lorentzian_ghz,
+        freqs, intensities,
+        p0=p0_summary,
+        bounds=(lower, upper),
+        maxfev=10000
+    )
+    f1, f2 = popt[1], popt[4]
+
+    # Plot result
+    plt.figure()
+    plt.plot(freqs, intensities, 'bo', label='Data')
+    plt.plot(freqs, double_lorentzian_ghz(freqs, *popt),
+             'r-', label=f'Fit: f1={f1:.3f} GHz, f2={f2:.3f} GHz')
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('ROI Intensity')
+    plt.title('CW-ODMR Spectrum and Fit')
+    plt.legend()
+    plt.show()
+
+    return f1, f2
+
+def plot_live_spectrum():
+    """
+    Live-updating CW-ODMR spectrum during data acquisition.
+    """
+    plt.ion()
+    fig, ax = plt.subplots()
+    line, = ax.plot([], [], 'bo-')
+    ax.set_xlabel('Frequency (GHz)')
+    ax.set_ylabel('Intensity')
+    ax.set_title('Live CW-ODMR Spectrum')
+    while not measurement_complete:
+        if intensity_dict:
+            hz_keys = sorted(intensity_dict.keys())
+            freqs = np.array(hz_keys) / 1e9
+            intensities = np.array([np.mean(intensity_dict[k]) for k in hz_keys])
+            line.set_data(freqs, intensities)
+            ax.relim()
+            ax.autoscale_view()
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+        time.sleep(1)
+    plt.ioff()
+    plt.show()
 
 # -----------------------------------------
 # Thread start and data collection
@@ -180,10 +280,17 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
 
 if __name__ == "__main__":
     file_path = r"C:\Users\user\Documents\hBN_magnetrometry\Data"
+    # Validate data directory
+    if not os.path.isdir(file_path):
+        raise NotADirectoryError(f"Data directory does not exist: {file_path}")
+
     sdg_thread = threading.Thread(target=sdg_control, daemon=True)
     producer_thread = threading.Thread(target=camera_producer,args= (), daemon=True)
     consumer_thread = threading.Thread(target=camera_consumer, args = (file_path,roi_x_start, roi_x_end, roi_y_start, roi_y_end), daemon=True)
 
+    # Start live plot thread
+    plot_thread = threading.Thread(target=plot_live_spectrum, daemon=True)
+    plot_thread.start()
 
     producer_thread.start()
     consumer_thread.start()
@@ -197,58 +304,6 @@ if __name__ == "__main__":
     for freq in sorted(intensity_dict.keys()):
         print(f"DEBUG: Number of entries measure at frequency {freq/1e9:.3f} GHz: {len(intensity_dict[freq])}")
 
-
-    # -----------------------------------------
-    # Step: Perform Lorentzian fitting on summary ODMR data
-    # -----------------------------------------
-    print("\nPerforming ODMR fit on summary data...")
-
-    # Build frequency and intensity arrays (convert to GHz)
-    freqs = np.array(sorted(intensity_dict.keys())) / 1e9
-    intensities = np.array([np.mean(intensity_dict[f*1e9]) for f in freqs])
-
-    # Define the double Lorentzian model (in GHz units)
-    def double_lorentzian_ghz(f, A1, f1, g1, A2, f2, g2, C):
-        lor1 = A1 * g1**2 / ((f - f1)**2 + g1**2)
-        lor2 = A2 * g2**2 / ((f - f2)**2 + g2**2)
-        return C - (lor1 + lor2)
-
-    # Initial guesses for summary fit: dips near 3.2 and 3.8 GHz
-    p0_summary = [
-        np.max(intensities)-np.min(intensities),  # A1
-        3.2,                                       # f1 (GHz)
-        0.01,                                      # g1 (GHz)
-        np.max(intensities)-np.min(intensities),  # A2
-        3.8,                                       # f2 (GHz)
-        0.01,                                      # g2 (GHz)
-        np.median(intensities)                    # C
-    ]
-    # Bounds for fitting
-    lower = [0, 3.0, 0.001, 0, 3.5, 0.001, np.min(intensities)]
-    upper = [np.ptp(intensities), 3.4, 0.1, np.ptp(intensities), 4.0, 0.1, np.max(intensities)]
-
-    # Perform the fit
-    try:
-        popt_summary, _ = curve_fit(
-            double_lorentzian_ghz,
-            freqs, intensities,
-            p0=p0_summary,
-            bounds=(lower, upper),
-            maxfev=10000
-        )
-        A1_s, f1_s, g1_s, A2_s, f2_s, g2_s, C_s = popt_summary
-        print(f"Fitted resonances: f1 = {f1_s:.3f} GHz, f2 = {f2_s:.3f} GHz")
-    except Exception as e:
-        print("Summary fit failed:", e)
-
-    # Plot summary data and fit
-    plt.figure()
-    plt.plot(freqs, intensities, 'bo', label='Data')
-    if 'popt_summary' in locals():
-        plt.plot(freqs, double_lorentzian_ghz(freqs, *popt_summary),
-                 'r-', label=f'Fit: f1={f1_s:.3f} GHz, f2={f2_s:.3f} GHz')
-    plt.xlabel('Frequency (GHz)')
-    plt.ylabel('ROI Intensity')
-    plt.title('CW-ODMR Spectrum and Fit')
-    plt.legend()
-    plt.show()
+    # Perform summary fit
+    f1_s, f2_s = fit_summary_odmr(intensity_dict)
+    print(f"Resonances: f₋={f1_s:.3f} GHz, f₊={f2_s:.3f} GHz")
