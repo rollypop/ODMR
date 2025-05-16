@@ -148,11 +148,6 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
     intensity_dict = {}
     processed_frames = 0
 
-    # Prepare cumulative CSV DataFrame
-    freqs_ghz = np.array(sorted(sweep_freqs)) / 1e9
-    df = pd.DataFrame({'MW freq (GHz)': freqs_ghz})
-    df.set_index('MW freq (GHz)', inplace=True)
-
     # ROI: x: 550~1000, y: 400~800 (Python index: y 400:801, x 550:1001)    
    
     while processed_frames < n_frames:
@@ -169,22 +164,30 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
             # accumulate in memory
             intensity_dict.setdefault(freq, []).append(roi_total_intensity)
             processed_frames += 1
-            # Update cumulative DataFrame
-            # Find row corresponding to this freq
-            freq_ghz = freq / 1e9
-            values = intensity_dict[freq]  # list of all intensities for this freq
-            # Ensure enough PL columns
-            for i, val in enumerate(values, start=1):
-                col = f'PL {i}'
-                df.loc[freq_ghz, col] = val
-            # Update average column
-            df.loc[freq_ghz, 'Avg. PL'] = np.mean(values)
-            # Save to CSV after this update
-            df.reset_index().to_csv(file_name, index=False)
             # Debugging: check data point every 500 frames
             if processed_frames % 500 == 0:
                 print(f"DEBUG: consumed frames {processed_frames}, present intensity_dict entries: {len(intensity_dict)}")
             print(f"Frame #{frame_num} processed: MW freq = {freq/1e9:.3f} GHz, ROI total intensity = {roi_total_intensity}")
+
+            # Periodically rebuild and save CSV every 1000 frames
+            if processed_frames % 1000 == 0:
+                hz_keys = sorted(intensity_dict.keys())
+                # Determine maximum number of PL entries
+                max_len = max(len(v) for v in intensity_dict.values())
+                # Build column names
+                cols = [f'PL {i}' for i in range(1, max_len+1)] + ['Avg. PL']
+                # Assemble rows
+                data = []
+                for f in hz_keys:
+                    vals = intensity_dict[f]
+                    row = vals + [np.nan] * (max_len - len(vals))
+                    row.append(np.mean(vals))
+                    data.append(row)
+                # Create DataFrame and save
+                df = pd.DataFrame(data, index=[f/1e9 for f in hz_keys], columns=cols)
+                df.index.name = 'MW freq (GHz)'
+                df.reset_index().to_csv(file_name, index=False)
+                print(f"DEBUG: CSV rebuilt and saved at {processed_frames} frames")
         except queue.Empty:
             continue
 
