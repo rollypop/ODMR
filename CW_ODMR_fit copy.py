@@ -148,6 +148,11 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
     intensity_dict = {}
     processed_frames = 0
 
+    # Prepare cumulative CSV DataFrame
+    freqs_ghz = np.array(sorted(sweep_freqs)) / 1e9
+    df = pd.DataFrame({'MW freq (GHz)': freqs_ghz})
+    df.set_index('MW freq (GHz)', inplace=True)
+
     # ROI: x: 550~1000, y: 400~800 (Python index: y 400:801, x 550:1001)    
    
     while processed_frames < n_frames:
@@ -163,23 +168,24 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
             # accumulate in memory
             intensity_dict.setdefault(freq, []).append(roi_total_intensity)
             processed_frames += 1
+            # Update cumulative DataFrame
+            # Find row corresponding to this freq
+            freq_ghz = freq / 1e9
+            values = intensity_dict[freq]  # list of all intensities for this freq
+            # Ensure enough PL columns
+            for i, val in enumerate(values, start=1):
+                col = f'PL {i}'
+                df.loc[freq_ghz, col] = val
+            # Update average column
+            df.loc[freq_ghz, 'Avg. PL'] = np.mean(values)
+            # Save to CSV after this update
+            df.reset_index().to_csv(file_name, index=False)
             # Debugging: check data point every 500 frames
             if processed_frames % 500 == 0:
                 print(f"DEBUG: consumed frames {processed_frames}, present intensity_dict entries: {len(intensity_dict)}")
             print(f"Frame #{frame_num} processed: MW freq = {freq/1e9:.3f} GHz, ROI total intensity = {roi_total_intensity}")
         except queue.Empty:
             continue
-
-    # After collecting all frames, write summary CSV once
-    df_summary = pd.DataFrame(
-        [(f, np.mean(vals)) for f, vals in sorted(intensity_dict.items())],
-        columns=["Frequency (Hz)", "Intensity"]
-    )
-    try:
-        df_summary.to_csv(file_name, index=False)
-    except Exception as e:
-        print(f"Error writing summary CSV {file_name}: {e}")
-        raise
 
     global measurement_complete
     measurement_complete = True
@@ -250,29 +256,6 @@ def fit_summary_odmr(intensity_dict):
 
     return f1, f2
 
-def plot_live_spectrum():
-    """
-    Live-updating CW-ODMR spectrum during data acquisition.
-    """
-    plt.ion()
-    fig, ax = plt.subplots()
-    line, = ax.plot([], [], 'bo-')
-    ax.set_xlabel('Frequency (GHz)')
-    ax.set_ylabel('Intensity')
-    ax.set_title('Live CW-ODMR Spectrum')
-    while not measurement_complete:
-        if intensity_dict:
-            hz_keys = sorted(intensity_dict.keys())
-            freqs = np.array(hz_keys) / 1e9
-            intensities = np.array([np.mean(intensity_dict[k]) for k in hz_keys])
-            line.set_data(freqs, intensities)
-            ax.relim()
-            ax.autoscale_view()
-            fig.canvas.draw()
-            fig.canvas.flush_events()
-        time.sleep(1)
-    plt.ioff()
-    plt.show()
 
 # -----------------------------------------
 # Thread start and data collection
@@ -287,10 +270,6 @@ if __name__ == "__main__":
     sdg_thread = threading.Thread(target=sdg_control, daemon=True)
     producer_thread = threading.Thread(target=camera_producer,args= (), daemon=True)
     consumer_thread = threading.Thread(target=camera_consumer, args = (file_path,roi_x_start, roi_x_end, roi_y_start, roi_y_end), daemon=True)
-
-    # Start live plot thread
-    plot_thread = threading.Thread(target=plot_live_spectrum, daemon=True)
-    plot_thread.start()
 
     producer_thread.start()
     consumer_thread.start()
