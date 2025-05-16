@@ -158,7 +158,8 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
     while processed_frames < n_frames:
         try:
             frame_num, image = frame_queue.get(timeout=0.1)
-            if frame_num < INITIAL_FRAMES_TO_DISCARD: # Collected after initial discard frames
+            if frame_num < INITIAL_FRAMES_TO_DISCARD:  # Discard initial unstable frames
+                print(f"Discarded initial frame #{frame_num}")
                 continue
             # Extract ROI
             roi = image[roi_y_start:roi_y_end, roi_x_start:roi_x_end]
