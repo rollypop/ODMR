@@ -1,0 +1,2 @@
+c:\Users\user\Documents\hBN_magnetrometry\Camera_Examples\Python\CW_ODMR_v2.py:178: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+  df.loc[freq_ghz, col] = val
