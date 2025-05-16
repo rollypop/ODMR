@@ -26,7 +26,7 @@ except ImportError:
 
 n_frames = 20000
 # Load frequency list for labeling (middle column of CSV in MHz)
-sweep_table_path = 'cw_sweeptable.csv'
+sweep_table_path = r"C:\Users\user\Documents\hBN_magnetrometry\Camera_Examples\Python\cw_sweep_table_dbm_-5_num_52.csv"
 # CSV has no header: columns are [step_index, freq_MHz, power_dBm]
 try:
     sweep_df = pd.read_csv(sweep_table_path, header=None)
