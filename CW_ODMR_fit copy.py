@@ -107,7 +107,7 @@ def camera_producer(exposure_time = 20000, frames_per_trigger_zero_for_unlimited
         with sdk.open_camera(available_cameras[0]) as camera:
             camera.exposure_time_us = exposure_time  # 20 ms exposure
             camera.frames_per_trigger_zero_for_unlimited = frames_per_trigger_zero_for_unlimited
-            camera.image_poll_timeout_ms = image_poll_timeout_ms
+            camera.image_poll_timeout_ms = image_poll_timeout_ms         # The poll timeout should be check whether is it okay to reduce to 20ms
             camera.frame_rate_control_value = frame_rate_control_value
             camera.is_frame_rate_control_enabled = is_frame_rate_control_enabled
 
@@ -123,7 +123,7 @@ def camera_producer(exposure_time = 20000, frames_per_trigger_zero_for_unlimited
                             break
                     frame = camera.get_pending_frame_or_null()
                     if frame is not None:
-                        image_buffer_copy = np.copy(frame.image_buffer)
+                        image_buffer_copy = np.copy(frame.image_buffer)    # image_buffer의 기능 확인하기
                         img = image_buffer_copy.reshape(
                             camera.image_height_pixels, camera.image_width_pixels
                         )
@@ -152,13 +152,13 @@ def camera_consumer(file_path, roi_x_start, roi_x_end, roi_y_start, roi_y_end):
    
     while processed_frames < n_frames:
         try:
-            frame_num, image = frame_queue.get(timeout=0.1)
+            frame_num, image = frame_queue.get(timeout=0.1)                  # image의 첫 등장, 이렇게 정의하면 image를 쓰면 각 픽섹의 intensity values를 얻게 되는것인지 확인해야함
             if frame_num < INITIAL_FRAMES_TO_DISCARD:  # Discard initial unstable frames
                 print(f"Discarded initial frame #{frame_num}")
                 continue
             # Extract ROI
-            roi = image[roi_y_start:roi_y_end, roi_x_start:roi_x_end]
-            roi_total_intensity = np.sum(roi)
+            roi = image[roi_y_start:roi_y_end, roi_x_start:roi_x_end]        #image의 기능이 머인지 확인 155번째 줄에서 정의되어있는데 이렇게 하면 intensity values를 포함하게 되는것인지 
+            roi_total_intensity = np.sum(roi)    
             step_index = (frame_num - INITIAL_FRAMES_TO_DISCARD) % num_steps
             freq = sweep_freqs[step_index]      # Hz
             # accumulate in memory
